@@ -1,5 +1,11 @@
 
 # Stat 405 project
+The goal of this project is to infer the true underlying movement trajectory of an animal from noisy GPS observations using Bayesian state-space models. GPS tracking devices record an animal’s location over time, but these measurements contain sensor noise and may not reflect the exact position of the animal. We model the true location as a latent trajectory that evolves over time and treat the observed GPS coordinates as noisy measurements of this trajectory.
+
+We compare three approaches for reconstructing the trajectory: a naive model, a Kalman filtering method and a Bayesian model estimated using Markov Chain Monte Carlo (MCMC). The Kalman filter provides a baseline trajectory estimate under Gaussian assumptions, while the Bayesian approach allows us to place priors on the movement and observation noise parameters and compute the full posterior distribution of the latent trajectory.
+
+Using real animal tracking data from the Movebank database, we evaluate how well each approach reconstructs the animal’s path and quantify uncertainty in the estimated movement trajectory.
+
 
 ## Proposed Methodology
 
