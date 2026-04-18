@@ -33,19 +33,16 @@ dt_hours <- as.numeric(difftime(timestamps[-1], timestamps[-length(timestamps)],
 
 # ---- Prepare Stan data ----
 stan_data <- list(
-  n       = nrow(j112_subset1),
+  T       = nrow(j112_subset1),
   Y_lon   = j112_subset1$lon,
   Y_lat   = j112_subset1$lat,
-  dt      = dt_hours,
-  Y1_lon  = j112_subset1$lon[1],
-  Y1_lat  = j112_subset1$lat[1],
-  sigma_measurement = 0.001
+  sigma_meas = 0.001
 )
 
 # ---- Compile and run ----
-mod <- cmdstan_model("velocity_state_space.stan")
+mod <- cmdstan_model("simple.stan")
 
-fit <- mod$sample(
+fit_simple <- mod$sample(
   data = stan_data,
   seed = 42,
   chains = 4,
@@ -57,19 +54,12 @@ fit <- mod$sample(
 
 
 # Extract draws in a format bayesplot can use
-draws_array <- fit$draws()
+draws_array_simple <- fit_simple$draws()
 
 # ---- Variance parameters ----
-mcmc_trace(draws_array, pars = c("sigma_position", "sigma_velocity"))
-mcmc_rank_hist(draws_array, pars = c("sigma_position", "sigma_velocity"))
+mcmc_trace(draws_array_simple, pars = c("sigma_move" ))
+mcmc_rank_hist(draws_array_simple, pars = c("sigma_move"))
 
 # ---- A few position states (early, middle, late) ----
-mcmc_trace(draws_array, pars = c("P_lon[1]", "P_lon[400]"))
-mcmc_rank_hist(draws_array, pars = c("P_lon[1]", "P_lon[400]"))
-
-# ---- Velocity states ----
-mcmc_trace(draws_array, pars = c("V_lon[1]", "V_lon[400]", "V_lon[800]"))
-mcmc_rank_hist(draws_array, pars = c("V_lon[1]", "V_lon[400]", "V_lon[800]"))
-
-# ---- Speed (derived quantity) ----
-mcmc_trace(draws_array, pars = c("speed[250]", "speed[400]"))
+mcmc_trace(draws_array_simple, pars = c("X_lon[1]", "X_lon[400]"))
+mcmc_rank_hist(draws_array_simple, pars = c("X_lon[1]", "X_lon[400]"))
