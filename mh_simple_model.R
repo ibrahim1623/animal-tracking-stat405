@@ -156,3 +156,124 @@ hist(sigma_post, breaks = 50,
 
 cat("sigma_movement mean:", mean(sigma_post), "\n")
 cat("sigma_movement 95% CI:", quantile(sigma_post, c(0.025, 0.975)), "\n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+# forward simulator
+forward <- function() {
+  sigma_movement <- rexp(1, rate = 1/0.01)
+  
+  X_lon <- numeric(n)
+  X_lat <- numeric(n)
+  X_lon[1] <- rnorm(1, mean = Y_lon[1], sd = 0.01)
+  X_lat[1] <- rnorm(1, mean = Y_lat[1], sd = 0.01)
+  for (i in 2:n) {
+    X_lon[i] <- rnorm(1, mean = X_lon[i-1], sd = sigma_movement)
+    X_lat[i] <- rnorm(1, mean = X_lat[i-1], sd = sigma_movement)
+  }
+  
+  Y_lon_sim <- rnorm(n, mean = X_lon, sd = sigma_measurement)
+  Y_lat_sim <- rnorm(n, mean = X_lat, sd = sigma_measurement)
+  
+  return(list(
+    X_lon = X_lon,
+    X_lat = X_lat,
+    sigma_movement = sigma_movement,
+    Y_lon = Y_lon_sim,
+    Y_lat = Y_lat_sim
+  ))
+}
+
+
+# runs forward sim, then optionally does MH iterations
+stationary_mcmc <- function(n_iterations) {
+  init <- forward()
+  
+  if (n_iterations == 0) {
+    return(init$sigma_movement)
+  }
+  
+  
+  X_lon <- init$X_lon
+  X_lat <- init$X_lat
+  sigma_mov <- init$sigma_movement
+  Y_lon_sim <- init$Y_lon
+  Y_lat_sim <- init$Y_lat
+  
+  log_gamma_sim <- function(X_lon, X_lat, sigma_movement) {
+    if (sigma_movement <= 0) return(-Inf)
+    lp <- dexp(sigma_movement, rate = 1/0.01, log = TRUE)
+    lp <- lp + dnorm(X_lon[1], mean = Y_lon_sim[1], sd = 0.01, log = TRUE)
+    lp <- lp + dnorm(X_lat[1], mean = Y_lat_sim[1], sd = 0.01, log = TRUE)
+    for (i in 2:n) {
+      lp <- lp + dnorm(X_lon[i], mean = X_lon[i-1], sd = sigma_movement, log = TRUE)
+      lp <- lp + dnorm(X_lat[i], mean = X_lat[i-1], sd = sigma_movement, log = TRUE)
+    }
+    for (i in 1:n) {
+      lp <- lp + dnorm(Y_lon_sim[i], mean = X_lon[i], sd = sigma_measurement, log = TRUE)
+      lp <- lp + dnorm(Y_lat_sim[i], mean = X_lat[i], sd = sigma_measurement, log = TRUE)
+    }
+    return(lp)
+  }
+  
+  current_lp <- log_gamma_sim(X_lon, X_lat, sigma_mov)
+  proposal_sd <- 0.003
+  
+  for (iter in 1:n_iterations) {
+    # Update each X_lon
+    for (i in 1:n) {
+      X_lon_prop <- X_lon
+      X_lon_prop[i] <- rnorm(1, mean = X_lon[i], sd = proposal_sd)
+      prop_lp <- log_gamma_sim(X_lon_prop, X_lat, sigma_mov)
+      if (log(runif(1)) < (prop_lp - current_lp)) {
+        X_lon <- X_lon_prop
+        current_lp <- prop_lp
+      }
+    }
+    # Update each X_lat
+    for (i in 1:n) {
+      X_lat_prop <- X_lat
+      X_lat_prop[i] <- rnorm(1, mean = X_lat[i], sd = proposal_sd)
+      prop_lp <- log_gamma_sim(X_lon, X_lat_prop, sigma_mov)
+      if (log(runif(1)) < (prop_lp - current_lp)) {
+        X_lat <- X_lat_prop
+        current_lp <- prop_lp
+      }
+    }
+    # Update sigma
+    sigma_prop <- rnorm(1, mean = sigma_mov, sd = proposal_sd)
+    if (sigma_prop > 0) {
+      prop_lp <- log_gamma_sim(X_lon, X_lat, sigma_prop)
+      if (log(runif(1)) < (prop_lp - current_lp)) {
+        sigma_mov <- sigma_prop
+        current_lp <- prop_lp
+      }
+    }
+  }
+  
+  return(sigma_mov)
+}
+
+# exact invariance test
+
+n_orig <- n
+n <- 10  # temporarily use very few points for fast testing
+
+forward_only <- replicate(500, stationary_mcmc(0))
+with_mcmc    <- replicate(500, stationary_mcmc(5))
+
+test_result <- ks.test(forward_only, with_mcmc)
+print(test_result)
+
+
+n <- n_orig  # restore original n
